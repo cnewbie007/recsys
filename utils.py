@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 def user_item_index():
     
     # read the file
-    path = './amazon/reviews_Electronics_5.json'
+    path = '/home/keyu/keyu/recommendation/data/amazon/reviews_Electronics_5.json'
 
     # get the pair of the user and item
     user_ids = []
@@ -62,8 +62,8 @@ def split_train_test(user_indices, item_indices):
     train_df = dataframe.drop(test_indices)
 
     # save train and test pair
-    train_df.to_csv('./amazon/encoded_pairs_train.csv', index=False)
-    test_df.to_csv('./amazon/encoded_pairs_test.csv', index=False)
+    train_df.to_csv('/home/keyu/keyu/recommendation/data/amazon/encoded_pairs_train.csv', index=False)
+    test_df.to_csv('/home/keyu/keyu/recommendation/data/amazon/encoded_pairs_test.csv', index=False)
 
     print(len(test_indices) / len(user_indices))
 
