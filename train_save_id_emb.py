@@ -7,7 +7,7 @@ from get_ID_data import *
 
 class Config:
     def __init__(self):
-        df = pd.read_csv('./amazon/encoded_pairs_train.csv')
+        df = pd.read_csv('/home/keyu/keyu/recommendation/data/amazon/encoded_pairs_train.csv')
         self.num_users = max(df['user_id'])
         self.num_items = max(df['item_id'])
         self.id_emb_size = args().id_emb_size
