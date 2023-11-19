@@ -1,11 +1,12 @@
 import torch
 import wandb
+import pickle
 import random
 import argparse
 import numpy as np
 import pandas as pd
 import torch.nn as nn
-from get_ID_data import *
+from get_FM_data import *
 from torch.autograd import Variable
 from sklearn.metrics import *
 
@@ -18,9 +19,9 @@ class Config:
         self.id_emb_size = args().id_emb_size
 
 
-class IDEmbeddingModel(nn.Module):
+class FMModel(nn.Module):
     def __init__(self):
-        super(IDEmbeddingModel, self).__init__()
+        super(FMModel, self).__init__()
 
         # get the configurations
         self.config = Config()
@@ -42,10 +43,10 @@ class IDEmbeddingModel(nn.Module):
         return batch_user_embeddings, batch_item_embeddings
 
 
-class TrainIDEmbeddings:
+class TrainFM:
     def __init__(self):
         # define the model
-        self.model = IDEmbeddingModel().to(device)
+        self.model = FMModel().to(device)
 
         # define optimizer
         self.optimizer = torch.optim.Adam(
@@ -109,7 +110,13 @@ class TrainIDEmbeddings:
                 y_true = np.append(y_true, label)
 
         auc_score = roc_auc_score(y_true, y_pred)
-        return auc_score
+
+        # check the performance for non-fake samples
+        real_y_true = y_true[y_true == 1]
+        real_y_pred = y_pred[y_true == 1]
+        real_auc = roc_auc_score(y_true, y_pred)
+
+        return auc_score, real_auc
 
     def train(self):
         
@@ -139,28 +146,55 @@ class TrainIDEmbeddings:
 
         return batch_loss / len(self.train_loader) 
 
+    def save_embeddings(self):
+        # save a cpu version embeddings
+        user_emb = self.model.user_embeddings.weight.data.cpu()
+        item_emb = self.model.item_embeddings.weight.data.cpu()
+        
+        # save user embeddings to pickle
+        user_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb_user-{}.pkl'.format(
+            args().id_emb_size
+        )
+        with open(user_path, 'wb') as file:
+            pickle.dump(user_emb, file)
+
+        # save item embeddings to pickle
+        item_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb_item-{}.pkl'.format(
+            args().id_emb_size
+        )
+        with open(item_path, 'wb') as file:
+            pickle.dump(item_emb, file)
+
     def workflow(self):
         
+        best_dev = 0
         for epoch in range(args().num_epochs):
 
             # train one epoch
             train_loss = self.train()
 
             # evaluate the AUC
-            auc_score = self.evaluation()
+            auc_score, real_auc = self.evaluation()
 
             print()
             print(
                 '*Epoch: {:02d}/{:02d}'.format(epoch + 1, args().num_epochs), '\n',
                 'Train Loss: {:.5f}'.format(train_loss), '\n',
-                'AUC score: {:.5f}'.format(auc_score)
+                'AUC score: {:.5f}'.format(auc_score), '\n',
+                'Real AUC: {:.5f}'.format(real_auc)
             )
+
+            # save the embeddings with best performance
+            if best_dev < real_auc:
+                best_dev = real_auc
+                self.save_embeddings()
 
             if args().wandb:
                 wandb.log(
                 {
                     'Train Loss': train_loss,
-                    'AUC': auc_score
+                    'AUC': auc_score,
+                    'Real AUC': real_auc
                 }
             )
 
@@ -176,9 +210,9 @@ def args():
                                   help=" backbone network, roberta/bert ")
     train_arg_parser.add_argument("--id_emb_size", type=int, default=32,
                                   help=" embedding size for ID embedding trainning ")
-    train_arg_parser.add_argument("--batchsz", type=int, default=32,
+    train_arg_parser.add_argument("--batchsz", type=int, default=256,
                                   help="batch size")
-    train_arg_parser.add_argument("--num_epochs", type=int, default=30,
+    train_arg_parser.add_argument("--num_epochs", type=int, default=36,
                                   help="batch size")
     train_arg_parser.add_argument("--wandb", type=int, default=0,
                                   help="batch size")
@@ -192,7 +226,9 @@ if __name__ == '__main__':
     if args().wandb:
         wandb.init(
             project='RecSys-Amazon', 
-            name='ID-Embedding'
+            name='FM-{}'.format(
+                args().id_emb_size
+            )
         )
 
     print(
@@ -205,4 +241,4 @@ if __name__ == '__main__':
         print(key + ':', args().__dict__[key])
     print()
 
-    TrainIDEmbeddings().workflow()
+    TrainFM().workflow()
