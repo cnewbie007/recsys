@@ -30,7 +30,7 @@ def get_rawdata():
     user_index = index_encoder.fit_transform(user_ids)
     item_index = index_encoder.fit_transform(item_ids)
 
-    # user interacted items
+    # user interacted items store in user_interact_dict: key: user, value: list of items
     size = len(user_index)
     user_interact_dict = collections.defaultdict(set)
     for i in range(size):
@@ -38,14 +38,16 @@ def get_rawdata():
         item = item_index[i]
         user_interact_dict[user].add(item)
     
-    # randomly generate 1/3 of none interated pairs out of total interactions for each user
+    # randomly generate 2/3 of none interated pairs out of total interactions for each user
     item_set = list(set(item_index))
     fake_users = []
     fake_items = []
     for user in user_interact_dict:
         n = len(user_interact_dict[user]) // 3 * 2 + 1
         while n > 0:
+            # random pick an item
             item_id = random.choice(item_set)
+            # construct a fake interaction pair
             if item_id not in user_interact_dict[user]:
                 fake_users.append(user)
                 fake_items.append(item_id)

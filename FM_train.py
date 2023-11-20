@@ -114,9 +114,9 @@ class TrainFM:
         # check the performance for non-fake samples
         real_y_true = y_true[y_true == 1]
         real_y_pred = y_pred[y_true == 1]
-        real_auc = roc_auc_score(y_true, y_pred)
+        real_acc = accuracy_score(real_y_true, real_y_pred)
 
-        return auc_score, real_auc
+        return auc_score, real_acc
 
     def train(self):
         
@@ -152,14 +152,14 @@ class TrainFM:
         item_emb = self.model.item_embeddings.weight.data.cpu()
         
         # save user embeddings to pickle
-        user_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb_user-{}.pkl'.format(
+        user_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb/FM_emb_user-{}.pkl'.format(
             args().id_emb_size
         )
         with open(user_path, 'wb') as file:
             pickle.dump(user_emb, file)
 
         # save item embeddings to pickle
-        item_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb_item-{}.pkl'.format(
+        item_path = '/home/keyu/keyu/recommendation/data/amazon/FM_emb/FM_emb_item-{}.pkl'.format(
             args().id_emb_size
         )
         with open(item_path, 'wb') as file:
@@ -174,19 +174,19 @@ class TrainFM:
             train_loss = self.train()
 
             # evaluate the AUC
-            auc_score, real_auc = self.evaluation()
+            auc_score, real_acc = self.evaluation()
 
             print()
             print(
                 '*Epoch: {:02d}/{:02d}'.format(epoch + 1, args().num_epochs), '\n',
                 'Train Loss: {:.5f}'.format(train_loss), '\n',
                 'AUC score: {:.5f}'.format(auc_score), '\n',
-                'Real AUC: {:.5f}'.format(real_auc)
+                'Real Accuracy: {:.5f}'.format(real_acc)
             )
 
             # save the embeddings with best performance
-            if best_dev < real_auc:
-                best_dev = real_auc
+            if best_dev < real_acc:
+                best_dev = real_acc
                 self.save_embeddings()
 
             if args().wandb:
@@ -194,7 +194,7 @@ class TrainFM:
                 {
                     'Train Loss': train_loss,
                     'AUC': auc_score,
-                    'Real AUC': real_auc
+                    'Real Accuracy': real_acc
                 }
             )
 
