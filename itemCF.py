@@ -21,7 +21,7 @@ class ItemCollaborativeFiltering:
         )
         return item_item_similarity
 
-    def get_item_topk_items(self, item_id):
+    def get_topk_items(self, item_id):
         # load similarity vector for given item id
         similarities = self.similarity_matrix[item_id]
 
@@ -33,9 +33,9 @@ class ItemCollaborativeFiltering:
         similarities = similarities.flatten()
 
         # sort the similarity and get the topK indices according to the item id
-        top_indices = similarities.argsort()[-(self.topK + 1):]
+        topk_item_indices = similarities.argsort()[-(self.topK + 1):]
 
-        return top_indices
+        return topk_item_indices[:-1]
 
     def recommend(self, user_id):
         # get the user id vadality 
@@ -49,7 +49,7 @@ class ItemCollaborativeFiltering:
         rec_list = np.array([], dtype=int)
         print('Number of interated history:', len(interated_item_indices))
         for item_id in interated_item_indices:
-            rec_list = np.append(rec_list, self.get_item_topk_items(item_id))
+            rec_list = np.append(rec_list, self.get_topk_items(item_id))
 
         # remove duplicates and return the list
         interated_item_indices = set(interated_item_indices)
