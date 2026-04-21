@@ -1,5 +1,5 @@
 import numpy as np
-from CF_preprocessing import *
+from .preprocessing import *
 from sklearn.metrics.pairwise import cosine_similarity
 
 
