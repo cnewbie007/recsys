@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import torch.nn as nn
-from get_FM_data import *
+from .get_data import *
 from torch.autograd import Variable
 from sklearn.metrics import *
 
