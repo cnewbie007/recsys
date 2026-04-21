@@ -1,53 +1,24 @@
-import os
-import pandas as pd
 import numpy as np
+import torch
 import scipy.sparse as sp
-from scipy.sparse import save_npz, load_npz
-from sklearn.metrics.pairwise import cosine_similarity
+from data.ml1m import load_ml1m
 
 
-def construct_user_item_matrix():
-    # load dataset
-    dataset = pd.read_csv(
-        '/home/keyu/keyu/recommendation/data/amazon/encoded_pairs_train.csv'
-    )[['user_id', 'item_id']]
-    dataset['interaction'] = 1
+class CFData:
+    def __init__(self):
+        self.train, self.test, self.users, self.movies = load_ml1m()
 
-    # initial the item user matrix
-    user_ids = dataset['user_id']
-    item_ids = dataset['item_id']
-    interaction = dataset['interaction']
+        self.num_users = self.users['user_id'].max() + 1
+        self.num_items = self.movies['item_id'].max() + 1
 
-    # create sparse matrix for both user-item and item-user
-    num_users = max(dataset['user_id']) + 1
-    num_items = max(dataset['item_id']) + 1
-    num_pairs = len(dataset)
+        rows = self.train['user_id'].values
+        cols = self.train['item_id'].values
+        self.train_matrix = sp.csr_matrix(
+            (np.ones(len(self.train)), (rows, cols)),
+            shape=(self.num_users, self.num_items)
+        )
 
-    user_item_matrix = sp.csr_matrix(
-        (
-            interaction,
-            (user_ids, item_ids)
-        ),
-        shape=(num_users, num_items)
-    )
-    
-    # save the user-item matrix
-    save_npz(
-        '/home/keyu/keyu/recommendation/data/amazon/user_item_matrix.npz', 
-        user_item_matrix
-    )
-
-
-def load_user_item_matrix():
-    # check if the file exists 
-    path = '/home/keyu/keyu/recommendation/data/amazon/user_item_matrix.npz'
-    if not os.path.exists(path):
-        construct_user_item_matrix()
-    
-    # load the matrix
-    user_item_matrix = load_npz(path)
-    return user_item_matrix
-
-
-if __name__ == '__main__':
-    matrix = load_user_item_matrix()
+    def get_test_pairs(self):
+        users = torch.tensor(self.test['user_id'].values, dtype=torch.long)
+        items = torch.tensor(self.test['item_id'].values, dtype=torch.long)
+        return users, items
