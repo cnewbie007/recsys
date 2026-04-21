@@ -1,0 +1,11 @@
+data/
+dataset/
+checkpoints/
+wandb/
+log/
+log_tensorboard/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.git/
