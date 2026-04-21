@@ -1,72 +1,72 @@
+import wandb
+import pickle
+import argparse
 import numpy as np
-from .preprocessing import *
+import scipy.sparse as sp
+from pathlib import Path
 from sklearn.metrics.pairwise import cosine_similarity
 
+from shared.base import BaseRecommender
+from collaborative_filtering.preprocessing import CFData
 
-class ItemCollaborativeFiltering:
-    def __init__(self, topK):
-        # define top K
-        self.topK = topK
-        # load the data
-        self.user_item_matrix = load_user_item_matrix()
-        self.num_users = self.user_item_matrix.shape[0]
-        print(self.num_users)
-        # compute the item-item similarity
-        self.similarity_matrix = self.compute_similarity()
 
-    def compute_similarity(self):
-        item_item_similarity = cosine_similarity(
-            self.user_item_matrix.T,
-            dense_output=False
+class ItemCFRecommender(BaseRecommender):
+    def __init__(self):
+        self.data            = None
+        self.item_similarity = None
+
+    def train(self, data: CFData):
+        self.data = data
+        self.build_index()
+
+    def build_index(self):
+        self.item_similarity = cosine_similarity(
+            self.data.train_matrix.T, dense_output=False
         )
-        return item_item_similarity
 
-    def get_topk_items(self, item_id):
-        # load similarity vector for given item id
-        similarities = self.similarity_matrix[item_id]
+    def recommend(self, user_id, topk=10):
+        user_row = self.data.train_matrix[user_id]
+        scores   = np.asarray(user_row.dot(self.item_similarity).todense()).flatten()
+        return np.argsort(-scores)[:topk].tolist()
 
-        # convert to array
-        if sp.issparse(similarities):
-            similarities = similarities.toarray()
-        
-        # flatten the similarity vector
-        similarities = similarities.flatten()
+    def evaluate(self, data: CFData):
+        test_users, true_items = data.get_test_pairs()
+        test_users = test_users.numpy()
+        true_items = true_items.numpy()
 
-        # sort the similarity and get the topK indices according to the item id
-        topk_item_indices = similarities.argsort()[-(self.topK + 1):]
+        test_rows = self.data.train_matrix[test_users]                          # (n, num_items)
+        scores    = np.asarray(test_rows.dot(self.item_similarity).todense())   # (n, num_items)
+        top10     = np.argsort(-scores, axis=1)[:, :10]
 
-        return topk_item_indices[:-1]
+        hits         = sum(true_items[i] in top10[i] for i in range(len(true_items)))
+        recall_at_10 = hits / len(true_items)
+        print(f'Recall@10: {recall_at_10:.4f}')
+        return {'recall@10': recall_at_10}
 
-    def recommend(self, user_id):
-        # get the user id vadality 
-        assert user_id < self.num_users, "User does not exist. (User ID out of bound)."
+    def save(self, path):
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        sp.save_npz(path / 'item_similarity.npz', self.item_similarity)
 
-        # get the interation item list of given user
-        interated_items = self.user_item_matrix[user_id, :]
-        interated_item_indices = interated_items.nonzero()[1]
+    def load(self, path):
+        path = Path(path)
+        self.item_similarity = sp.load_npz(path / 'item_similarity.npz')
 
-        # for each interated item, get the list of topK similar items
-        rec_list = np.array([], dtype=int)
-        print('Number of interated history:', len(interated_item_indices))
-        for item_id in interated_item_indices:
-            rec_list = np.append(rec_list, self.get_topk_items(item_id))
-
-        # remove duplicates and return the list
-        interated_item_indices = set(interated_item_indices)
-        filtered_list = [item_id for item_id in rec_list if item_id not in interated_item_indices]
-
-        return list(set(filtered_list))
-    
 
 if __name__ == '__main__':
-    item_cf = ItemCollaborativeFiltering(10)
-    test_user_ids = [1, 3, 5, 7, 9]
-    for user in test_user_ids:
-        print()
-        print('User ID:', user)
-        r_list = item_cf.recommend(user)
-        print('Number of recommendations from itemCF:', len(r_list))
-        print(r_list)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-wandb', action='store_true')
+    args = parser.parse_args()
 
+    if not args.no_wandb:
+        wandb.init(project='recsys-cf', name='itemcf')
 
+    data        = CFData()
+    recommender = ItemCFRecommender()
+    recommender.train(data)
+    metrics = recommender.evaluate(data)
+    recommender.save('checkpoints/itemcf')
 
+    if not args.no_wandb:
+        wandb.log(metrics)
+        wandb.finish()

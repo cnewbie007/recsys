@@ -12,7 +12,7 @@ GENRE_TO_IDX = {g: i for i, g in enumerate(GENRES)}
 NUM_GENRES = len(GENRES)
 
 
-class FMData:
+class TwoTowerData:
     def __init__(self):
         self.train, self.test, self.users, self.movies = load_ml1m()
 
@@ -20,8 +20,8 @@ class FMData:
         self.num_items = self.movies['item_id'].max() + 1
 
         users_sorted = self.users.sort_values('user_id')
-        self.user_gender     = torch.tensor(users_sorted['gender'].values,     dtype=torch.long)
-        self.user_age        = torch.tensor(users_sorted['age'].values,        dtype=torch.long)
+        self.user_gender = torch.tensor(users_sorted['gender'].values, dtype=torch.long)
+        self.user_age = torch.tensor(users_sorted['age'].values, dtype=torch.long)
         self.user_occupation = torch.tensor(users_sorted['occupation'].values, dtype=torch.long)
 
         genre_matrix = np.zeros((self.num_items, NUM_GENRES), dtype=np.float32)

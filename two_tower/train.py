@@ -7,25 +7,25 @@ from pathlib import Path
 from torch.utils.data import DataLoader, TensorDataset
 
 from shared.base import BaseRecommender
-from factorization_machine.model import FMModel
-from factorization_machine.preprocessing import FMData, NUM_GENRES
+from two_tower.model import TwoTowerModel
+from two_tower.preprocessing import TwoTowerData, NUM_GENRES
 
 
-class FMRecommender(BaseRecommender):
+class TwoTowerRecommender(BaseRecommender):
     def __init__(self, emb_size=64, output_size=64, batch_size=512, num_epochs=50, lr=1e-3):
-        self.emb_size    = emb_size
+        self.emb_size = emb_size
         self.output_size = output_size
-        self.batch_size  = batch_size
-        self.num_epochs  = num_epochs
-        self.lr          = lr
-        self.device      = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model       = None
-        self.data        = None
-        self.item_index  = None
+        self.batch_size = batch_size
+        self.num_epochs = num_epochs
+        self.lr = lr
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = None
+        self.data = None
+        self.item_index = None
 
-    def train(self, data: FMData, use_wandb=False):
-        self.data  = data
-        self.model = FMModel(
+    def train(self, data: TwoTowerData, use_wandb=False):
+        self.data = data
+        self.model = TwoTowerModel(
             data.num_users, data.num_items, NUM_GENRES,
             self.emb_size, self.output_size
         ).to(self.device)
@@ -76,7 +76,7 @@ class FMRecommender(BaseRecommender):
     def build_index(self):
         self.model.eval()
         all_item_ids = torch.arange(self.data.num_items).to(self.device)
-        all_genres   = self.data.item_genres.to(self.device)
+        all_genres = self.data.item_genres.to(self.device)
 
         with torch.no_grad():
             self.item_index = self.model.item_tower(all_item_ids, all_genres).cpu().numpy()
@@ -96,7 +96,7 @@ class FMRecommender(BaseRecommender):
         scores = user_emb @ self.item_index.T
         return np.argsort(-scores[0])[:topk].tolist()
 
-    def evaluate(self, test_data: FMData):
+    def evaluate(self, test_data: TwoTowerData):
         self.model.eval()
         user_ids, true_items = test_data.get_test_pairs()
 
@@ -110,9 +110,9 @@ class FMRecommender(BaseRecommender):
             ).cpu().numpy()
 
         scores = user_embs @ self.item_index.T
-        top10  = np.argsort(-scores, axis=1)[:, :10]
+        top10 = np.argsort(-scores, axis=1)[:, :10]
 
-        hits         = sum(true_item in top10[i] for i, true_item in enumerate(true_items.numpy()))
+        hits = sum(true_item in top10[i] for i, true_item in enumerate(true_items.numpy()))
         recall_at_10 = hits / len(user_ids)
         print(f'Recall@10: {recall_at_10:.4f}')
         return {'recall@10': recall_at_10}
@@ -133,20 +133,20 @@ class FMRecommender(BaseRecommender):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--emb_size',   type=int,   default=64)
-    parser.add_argument('--epochs',     type=int,   default=50)
-    parser.add_argument('--batch_size', type=int,   default=512)
-    parser.add_argument('--lr',         type=float, default=1e-3)
+    parser.add_argument('--emb_size', type=int, default=64)
+    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--batch_size', type=int, default=512)
+    parser.add_argument('--lr', type=float, default=1e-3)
     args = parser.parse_args()
 
     wandb.init(
-        project='recsys-fm',
+        project='recsys-two-tower',
         name=f'emb{args.emb_size}-ep{args.epochs}',
         config=vars(args)
     )
 
-    data        = FMData()
-    recommender = FMRecommender(
+    data = TwoTowerData()
+    recommender = TwoTowerRecommender(
         emb_size=args.emb_size,
         output_size=args.emb_size,
         batch_size=args.batch_size,
@@ -157,4 +157,4 @@ if __name__ == '__main__':
     metrics = recommender.evaluate(data)
     wandb.log({'final_recall@10': metrics['recall@10']})
     wandb.finish()
-    recommender.save(f'checkpoints/fm_emb{args.emb_size}')
+    recommender.save(f'checkpoints/two_tower_emb{args.emb_size}')
