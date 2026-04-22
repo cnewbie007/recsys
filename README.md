@@ -4,14 +4,14 @@ A hands-on implementation of recommendation system algorithms, covering retrieva
 
 ## Algorithms
 
-| Algorithm | Type | Stage |
-|-----------|------|-------|
-| ItemCF | Collaborative Filtering | Retrieval |
-| UserCF | Collaborative Filtering | Retrieval |
-| Factorization Machine | Embedding-based | Retrieval |
-| Two-Tower (DSSM) | Dual Encoder | Retrieval |
-| SASRec | Sequential / Transformer | Retrieval |
-| DIN | Attention-based | Ranking |
+| Algorithm | Type | Stage | Status |
+|-----------|------|-------|--------|
+| ItemCF | Collaborative Filtering | Retrieval | Done |
+| UserCF | Collaborative Filtering | Retrieval | Done |
+| Factorization Machine | Embedding-based | Retrieval | Done |
+| Two-Tower (DSSM) | Dual Encoder | Retrieval | Done |
+| SASRec | Sequential / Transformer | Retrieval | Next |
+| DIN | Attention-based | Ranking | Planned |
 
 ## Dataset
 
@@ -31,9 +31,11 @@ data/
 ```
 recsys/
   collaborative_filtering/   # ItemCF, UserCF
-  factorization_machine/     # FM-based ID embedding
+  factorization_machine/     # FM with feature interactions
   two_tower/                 # DSSM dual encoder
+  sasrec/                    # Sequential transformer (coming soon)
   data/                      # datasets (not committed)
+  shared/                    # BaseRecommender interface
 ```
 
 ## Setup
@@ -42,11 +44,37 @@ recsys/
 pip install -r requirements.txt
 ```
 
+## Running
+
+```bash
+# Collaborative Filtering (ItemCF + UserCF comparison)
+python -m collaborative_filtering.main
+
+# Factorization Machine
+python -m factorization_machine.train --emb_size 64 --epochs 50 --lr 1e-3
+
+# Two-Tower
+python -m two_tower.train --emb_size 64 --epochs 50 --lr 1e-3
+```
+
+All runs log Recall@10 to [Weights & Biases](https://wandb.ai). Set `WANDB_API_KEY` in your environment before running.
+
+## Docker / RunPod
+
+```bash
+# Build
+docker build -t recsys .
+
+# Run a training job (override CMD per job)
+docker run --gpus all -e WANDB_API_KEY=<key> recsys \
+  python -m two_tower.train --emb_size 64 --epochs 50
+```
+
 ## Design
 
-Each algorithm follows a consistent interface built with deployment in mind:
+Each algorithm implements a consistent interface built with deployment in mind:
 
-- **Offline**: `train()` → `build_index()` → `save()` — fits the model and pre-computes a FAISS item index
+- **Offline**: `train()` → `build_index()` → `save()` — fits the model and pre-computes an item embedding index
 - **Online**: `load()` → `recommend(user_id, topk)` — fast ANN lookup, no full forward pass at serve time
 
-Evaluation uses **Recall@K**, **NDCG@K**, and **AUC** consistently across all algorithms.
+Evaluation uses **Recall@10** consistently across all algorithms (leave-one-out split: last rated item per user is held out).
